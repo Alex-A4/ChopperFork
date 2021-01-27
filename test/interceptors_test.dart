@@ -213,7 +213,7 @@ void main() {
 
       final logs = [];
       chopperLogger.onRecord.listen((r) => logs.add(r.message));
-      await logger.onResponse(fakeResponse);
+      await logger.onResponse(fakeResponse, null);
 
       expect(
         logs,
@@ -234,7 +234,7 @@ class ResponseIntercept implements ResponseInterceptor {
   static dynamic intercepted;
 
   @override
-  FutureOr<Response> onResponse(Response response) {
+  FutureOr<Response> onResponse(Response response, _) {
     intercepted = _Intercepted(response.body);
     return response;
   }

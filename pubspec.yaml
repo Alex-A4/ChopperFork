@@ -1,6 +1,6 @@
 name: alexa4_http
 description: Copy of chopper with modifications
-version: 0.0.1
+version: 0.0.2
 
 environment:
   sdk: ">=2.9.0 <3.0.0"

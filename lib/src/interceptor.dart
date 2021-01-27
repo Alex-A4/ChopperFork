@@ -28,7 +28,7 @@ import 'constants.dart';
 /// ```
 @immutable
 abstract class ResponseInterceptor {
-  FutureOr<Response> onResponse(Response response);
+  FutureOr<Response> onResponse(Response response, Request interceptedRequest);
 }
 
 /// Interface to implements a request interceptor.
@@ -153,7 +153,7 @@ class HttpLoggingInterceptor
   }
 
   @override
-  FutureOr<Response> onResponse(Response response) {
+  FutureOr<Response> onResponse(Response response, _) {
     final base = response.base.request;
     chopperLogger.info('<-- ${response.statusCode} ${base.url}');
 

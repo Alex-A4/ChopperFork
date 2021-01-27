@@ -187,11 +187,12 @@ class ChopperClient {
 
   Future<Response<BodyType>> _interceptResponse<BodyType, InnerType>(
     Response<BodyType> res,
+    Request interceptedRequest,
   ) async {
     final body = res.body;
     for (final i in _responseInterceptors) {
       if (i is ResponseInterceptor) {
-        res = await i.onResponse(res);
+        res = await i.onResponse(res, interceptedRequest);
       } else if (i is ResponseInterceptorFunc1) {
         res = await i<BodyType>(res);
       } else if (i is ResponseInterceptorFunc2) {
@@ -299,7 +300,7 @@ class ChopperClient {
       res = await _handleErrorResponse<BodyType, InnerType>(res);
     }
 
-    res = await _interceptResponse<BodyType, InnerType>(res);
+    res = await _interceptResponse<BodyType, InnerType>(res, req);
 
     _responseController.add(res);
 
