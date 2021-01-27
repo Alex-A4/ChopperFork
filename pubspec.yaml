@@ -1,0 +1,12 @@
+name: alexa4_http
+description: Copy of chopper with modifications
+version: 0.0.1
+
+environment:
+  sdk: ">=2.9.0 <3.0.0"
+
+dependencies:
+  http: ^0.12.2
+
+dev_dependencies:
+  test: ^1.15.7
