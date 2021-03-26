@@ -289,7 +289,7 @@ class ChopperClient {
     }
 
     final response = await http.Response.fromStream(streamRes);
-    dynamic res = Response(response, response.body);
+    dynamic res = Response(response, response.bodyBytes);
 
     if (_responseIsSuccessful(response.statusCode)) {
       res = await _handleSuccessResponse<BodyType, InnerType>(
