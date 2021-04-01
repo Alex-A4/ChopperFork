@@ -6,15 +6,13 @@ import 'package:http/http.dart' as http;
 
 void main() {
   group('Form', () {
-    final buildClient =
-        (http.Client httpClient, {bool isJson = false}) => ChopperClient(
-              services: [
-                // the generated service
-                HttpTestService.create(),
-              ],
-              client: httpClient,
-              converter: isJson ? JsonConverter() : null,
-            );
+    final buildClient = (http.Client httpClient) => ChopperClient(
+          services: [
+            // the generated service
+            HttpTestService.create(),
+          ],
+          client: httpClient,
+        );
 
     test('form-urlencoded default if no converter', () async {
       final httpClient = MockClient((http.Request req) async {
@@ -71,7 +69,7 @@ void main() {
         return http.Response('ok', 200);
       });
 
-      final chopper = buildClient(httpClient, isJson: true);
+      final chopper = buildClient(httpClient);
 
       final result =
           await chopper.getService<HttpTestService>().postFormUsingHeaders({
@@ -94,7 +92,7 @@ void main() {
         return http.Response('ok', 200);
       });
 
-      final chopper = buildClient(httpClient, isJson: false);
+      final chopper = buildClient(httpClient);
 
       final result = await chopper
           .getService<HttpTestService>()

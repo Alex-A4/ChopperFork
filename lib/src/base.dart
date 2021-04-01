@@ -1,12 +1,10 @@
 import 'dart:async';
 import 'package:meta/meta.dart';
-import 'package:http/http.dart' as http;
+import 'package:http/http.dart' show Client, Response;
 import 'constants.dart';
 
 import 'interceptor.dart';
 import 'request.dart';
-import 'response.dart';
-import 'utils.dart';
 
 Type _typeOf<T>() => T;
 
@@ -25,14 +23,7 @@ class ChopperClient {
 
   /// Http client used to do request
   /// from `package:http/http.dart`
-  final http.Client httpClient;
-
-  /// Converter call before request interceptor
-  /// and before interceptor of successful response
-  final Converter? converter;
-
-  /// Converter call on error request
-  final ErrorConverter? errorConverter;
+  final Client httpClient;
 
   final Map<Type, ChopperService> _services = {};
   final _requestInterceptors = [];
@@ -43,52 +34,12 @@ class ChopperClient {
   final bool _clientIsInternal;
 
   /// Inject any service using the [services] parameter.
-  /// See [ChopperApi] annotation to define a service.
-  ///
-  /// ```dart
-  /// final chopper = ChopperClient(
-  ///     baseUrl: 'localhost:8000',
-  ///     services: [
-  ///       // inject the generated service
-  ///       TodosListService.create()
-  ///     ],
-  ///   );
-  /// ```
-  ///
-  /// Interceptors can be use to apply modification or log infos for each
-  /// requests and responsed happening in that client.
-  /// See [ResponseInterceptor] and [RequestInterceptor]
-  ///
-  /// ```dart
-  /// final chopper = ChopperClient(
-  ///     ...
-  ///     interceptors: [
-  ///       HttpLoggingInterceptor(),
-  ///     ]
-  ///   );
-  /// ```
-  ///
-  /// [Converter] is used to apply modification on the body of a request/response
-  /// like converting an object to json (or json to object).
-  /// A different converter is used when an error is happening ([Response.isSuccessful] == false)
-  /// See [JsonConverter]
-  ///
-  ///
-  /// ```dart
-  /// final chopper = ChopperClient(
-  ///     ...
-  ///     converter: JsonConverter(),
-  ///     errorConverter: JsonConverter(),
-  ///   );
-  /// ```
   ChopperClient({
     this.baseUrl = '',
-    http.Client? client,
+    Client? client,
     Iterable interceptors = const [],
-    this.converter,
-    this.errorConverter,
     Iterable<ChopperService> services = const [],
-  })  : httpClient = client ?? http.Client(),
+  })  : httpClient = client ?? Client(),
         _clientIsInternal = client == null {
     if (interceptors.every(_isAnInterceptor) == false) {
       throw ArgumentError(
@@ -139,20 +90,6 @@ class ChopperClient {
     return service as ServiceType;
   }
 
-  Future<Request> _encodeRequest(Request request) async {
-    return converter?.convertRequest(request) ?? request;
-  }
-
-  Future<Response<BodyType>> _decodeResponse<BodyType, InnerType>(
-    Response response,
-    Converter withConverter,
-  ) async {
-    final converted =
-        await withConverter.convertResponse<BodyType, InnerType>(response);
-
-    return converted;
-  }
-
   Future<Request> _interceptRequest(Request req) async {
     for (final i in _requestInterceptors) {
       if (i is RequestInterceptor) {
@@ -163,8 +100,8 @@ class ChopperClient {
     return req;
   }
 
-  Future<Response<BodyType>> _interceptResponse<BodyType, InnerType>(
-    Response<BodyType> res,
+  Future<Response> _interceptResponse(
+    Response res,
     Request interceptedRequest,
   ) async {
     for (final i in _responseInterceptors) {
@@ -176,83 +113,17 @@ class ChopperClient {
     return res;
   }
 
-  Future<Response<BodyType>> _handleErrorResponse<BodyType, InnerType>(
-    Response response,
-  ) async {
-    var error = response.body;
-    if (errorConverter != null) {
-      final errorRes = await errorConverter!.convertError<BodyType, InnerType>(
-        response,
-      );
-      error = errorRes.error ?? errorRes.body;
-    }
-
-    return Response<BodyType>(response.base, null, error: error);
-  }
-
-  Future<Response<BodyType>> _handleSuccessResponse<BodyType, InnerType>(
-    Response response,
-    Converter? responseConverter,
-  ) async {
-    if (responseConverter != null) {
-      response = await responseConverter.convertResponse(response);
-    } else if (converter != null) {
-      response =
-          await _decodeResponse<BodyType, InnerType>(response, converter!);
-    }
-
-    return Response<BodyType>(response.base, response.body);
-  }
-
-  Future<Request> _handleRequestConverter(
-    Request request,
-    Converter? requestConverter,
-  ) async {
-    if (request.body != null || request.parts.isNotEmpty) {
-      if (requestConverter != null) {
-        request = await requestConverter.convertRequest(request);
-      } else {
-        request = await _encodeRequest(request);
-      }
-    }
-
-    return request;
-  }
-
   /// Send request function that apply all interceptors and converters
-  ///
-  /// [BodyType] is the expected type of your response
-  /// ex: `String` or `CustomObject`
-  ///
-  /// In the case of [BodyType] is a `List` or `BuildList`
-  /// [InnerType] will be the type of the generic
-  ///
-  /// ```dart
-  /// Response<List<CustomObject>> res = await send<List<CustomObject>, CustomObject>(request);
-  /// ````
-  Future<Response<BodyType>> send<BodyType, InnerType>(
-    Request request, {
-    Converter? converter,
-  }) async {
-    var req = await _handleRequestConverter(request, converter);
-    req = await _interceptRequest(req);
+  /// The error saves to body
+  Future<Response> send(Request request) async {
+    var req = await _interceptRequest(request);
     _requestController.add(req);
 
     final streamRes = await httpClient.send(await req.toBaseRequest());
-    if (isTypeOf<BodyType, Stream<List<int>>>()) {
-      return Response(streamRes, (streamRes.stream) as BodyType);
-    }
 
-    final response = await http.Response.fromStream(streamRes);
-    dynamic res = Response(response, response.body);
+    var res = await Response.fromStream(streamRes);
 
-    if (_responseIsSuccessful(response.statusCode)) {
-      res = await _handleSuccessResponse<BodyType, InnerType>(res, converter);
-    } else {
-      res = await _handleErrorResponse<BodyType, InnerType>(res);
-    }
-
-    res = await _interceptResponse<BodyType, InnerType>(res, req);
+    res = await _interceptResponse(res, req);
 
     _responseController.add(res);
 
@@ -260,24 +131,22 @@ class ChopperClient {
   }
 
   /// Http GET request using [send] function
-  Future<Response<BodyType>> get<BodyType, InnerType>(
+  Future<Response> get(
     String url, {
     Map<String, String>? headers,
     Map<String, dynamic>? parameters,
     String? baseUrl,
   }) =>
-      send<BodyType, InnerType>(
-        Request(
-          HttpMethod.Get,
-          url,
-          baseUrl ?? this.baseUrl,
-          headers: headers,
-          parameters: parameters,
-        ),
-      );
+      send(Request(
+        HttpMethod.Get,
+        url,
+        baseUrl ?? this.baseUrl,
+        headers: headers,
+        parameters: parameters,
+      ));
 
   /// Http POST request using [send] function
-  Future<Response<BodyType>> post<BodyType, InnerType>(
+  Future<Response> post(
     String url, {
     dynamic? body,
     List<PartValue>? parts,
@@ -286,21 +155,19 @@ class ChopperClient {
     bool? multipart,
     String? baseUrl,
   }) =>
-      send<BodyType, InnerType>(
-        Request(
-          HttpMethod.Post,
-          url,
-          baseUrl ?? this.baseUrl,
-          body: body,
-          parts: parts,
-          headers: headers,
-          multipart: multipart,
-          parameters: parameters,
-        ),
-      );
+      send(Request(
+        HttpMethod.Post,
+        url,
+        baseUrl ?? this.baseUrl,
+        body: body,
+        parts: parts,
+        headers: headers,
+        multipart: multipart,
+        parameters: parameters,
+      ));
 
   /// Http PUT request using [send] function
-  Future<Response<BodyType>> put<BodyType, InnerType>(
+  Future<Response> put(
     String url, {
     dynamic? body,
     List<PartValue>? parts,
@@ -309,21 +176,19 @@ class ChopperClient {
     bool? multipart,
     String? baseUrl,
   }) =>
-      send<BodyType, InnerType>(
-        Request(
-          HttpMethod.Put,
-          url,
-          baseUrl ?? this.baseUrl,
-          body: body,
-          parts: parts,
-          headers: headers,
-          multipart: multipart,
-          parameters: parameters,
-        ),
-      );
+      send(Request(
+        HttpMethod.Put,
+        url,
+        baseUrl ?? this.baseUrl,
+        body: body,
+        parts: parts,
+        headers: headers,
+        multipart: multipart,
+        parameters: parameters,
+      ));
 
   /// Http PATCH request using [send] function
-  Future<Response<BodyType>> patch<BodyType, InnerType>(
+  Future<Response> patch(
     String url, {
     dynamic? body,
     List<PartValue>? parts,
@@ -332,69 +197,61 @@ class ChopperClient {
     bool? multipart,
     String? baseUrl,
   }) =>
-      send<BodyType, InnerType>(
-        Request(
-          HttpMethod.Patch,
-          url,
-          baseUrl ?? this.baseUrl,
-          body: body,
-          parts: parts,
-          headers: headers,
-          multipart: multipart,
-          parameters: parameters,
-        ),
-      );
+      send(Request(
+        HttpMethod.Patch,
+        url,
+        baseUrl ?? this.baseUrl,
+        body: body,
+        parts: parts,
+        headers: headers,
+        multipart: multipart,
+        parameters: parameters,
+      ));
 
   /// Makes a HTTP OPTIONS request using the [send] function.
-  Future<Response<BodyType>> options<BodyType, InnerType>(
+  Future<Response> options(
     String url, {
     Map<String, String> headers = const {},
     Map<String, dynamic>? parameters,
     String? baseUrl,
   }) =>
-      send<BodyType, InnerType>(
-        Request(
-          HttpMethod.Options,
-          url,
-          baseUrl ?? this.baseUrl,
-          headers: headers,
-          parameters: parameters,
-        ),
-      );
+      send(Request(
+        HttpMethod.Options,
+        url,
+        baseUrl ?? this.baseUrl,
+        headers: headers,
+        parameters: parameters,
+      ));
 
   /// Http DELETE request using [send] function
-  Future<Response<BodyType>> delete<BodyType, InnerType>(
+  Future<Response> delete(
     String url, {
     Map<String, String>? headers,
     Map<String, dynamic>? parameters,
     String? baseUrl,
   }) =>
-      send<BodyType, InnerType>(
-        Request(
-          HttpMethod.Delete,
-          url,
-          baseUrl ?? this.baseUrl,
-          headers: headers,
-          parameters: parameters,
-        ),
-      );
+      send(Request(
+        HttpMethod.Delete,
+        url,
+        baseUrl ?? this.baseUrl,
+        headers: headers,
+        parameters: parameters,
+      ));
 
   /// Http Head request using [send] function
-  Future<Response<BodyType>> head<BodyType, InnerType>(
+  Future<Response> head(
     String url, {
     Map<String, String>? headers,
     Map<String, dynamic>? parameters,
     String? baseUrl,
   }) =>
-      send<BodyType, InnerType>(
-        Request(
-          HttpMethod.Head,
-          url,
-          baseUrl ?? this.baseUrl,
-          headers: headers,
-          parameters: parameters,
-        ),
-      );
+      send(Request(
+        HttpMethod.Head,
+        url,
+        baseUrl ?? this.baseUrl,
+        headers: headers,
+        parameters: parameters,
+      ));
 
   /// dispose [ChopperClient] to clean memory.
   ///
@@ -432,5 +289,6 @@ abstract class ChopperService {
   Type get definitionType;
 }
 
-bool _responseIsSuccessful(int statusCode) =>
-    statusCode >= 200 && statusCode < 300;
+extension ResponseAddition on Response {
+  bool get isSuccessful => statusCode >= 200 && statusCode < 300;
+}

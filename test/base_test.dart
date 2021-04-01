@@ -10,16 +10,13 @@ import 'test_service.dart';
 const baseUrl = 'http://localhost:8000';
 
 void main() {
-  final buildClient = (
-          [http.Client? httpClient, ErrorConverter? errorConverter]) =>
-      ChopperClient(
+  final buildClient = ([http.Client? httpClient]) => ChopperClient(
         baseUrl: baseUrl,
         services: [
           // the generated service
           HttpTestService.create(),
         ],
         client: httpClient,
-        errorConverter: errorConverter,
       );
   group('Base', () {
     test('get service', () async {
@@ -67,38 +64,6 @@ void main() {
       final response = await service.getTest('1234');
 
       expect(response.body, equals('get response'));
-      expect(response.statusCode, equals(200));
-
-      httpClient.close();
-    });
-
-    test('GET stream', () async {
-      final httpClient = MockClient.streaming((request, stream) async {
-        expect(
-          request.url.toString(),
-          equals('$baseUrl/test/get'),
-        );
-        expect(request.method, equals('GET'));
-
-        final bodyStreamList = <Future<List<int>>>[];
-        bodyStreamList.add(Future.value(Utf8Encoder().convert('get ')));
-        bodyStreamList.add(Future.value(Utf8Encoder().convert('response')));
-        final s = Stream.fromFutures(bodyStreamList);
-
-        return http.StreamedResponse(s, 200);
-      });
-
-      final chopper = buildClient(httpClient);
-      final service = chopper.getService<HttpTestService>();
-
-      final response = await service.getStreamTest();
-
-      final bytes = <int>[];
-      await response.body!.forEach((d) {
-        bytes.addAll(d);
-      });
-
-      expect(Utf8Decoder().convert(bytes), equals('get response'));
       expect(response.statusCode, equals(200));
 
       httpClient.close();
@@ -650,8 +615,7 @@ void main() {
 
     expect(res.isSuccessful, isFalse);
     expect(res.statusCode, equals(400));
-    expect(res.body, isNull);
-    expect(res.error, equals('error'));
+    expect(res.body, equals('error'));
 
     client.close();
     chopper.dispose();
@@ -659,17 +623,17 @@ void main() {
 
   test('error Converter', () async {
     final client = MockClient((http.Request req) async {
-      return http.Response('{"error":true}', 400);
+      return http.Response('{"error": true}', 400);
     });
 
-    final chopper = buildClient(client, JsonConverter());
+    final chopper = buildClient(client);
 
     final service = HttpTestService.create(chopper);
     final res = await service.getTest('1234');
 
     expect(res.isSuccessful, isFalse);
     expect(res.statusCode, equals(400));
-    expect(res.error, equals({'error': true}));
+    expect(res.body, equals('{"error": true}'));
 
     client.close();
     chopper.dispose();

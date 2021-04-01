@@ -14,7 +14,6 @@ void main() {
         interceptors: [
           HeadersInterceptor({'foo': 'bar'}),
         ],
-        converter: JsonConverter(),
       );
   group('Client methods', () {
     test('GET', () async {
@@ -60,7 +59,7 @@ void main() {
       final response = await chopper.post(
         '/test/post',
         headers: {'int': '42'},
-        body: {'content': 'body'},
+        body: json.encode({'content': 'body'}),
         parameters: {'key': 'val'},
       );
 
@@ -88,7 +87,7 @@ void main() {
       final response = await chopper.put(
         '/test/put',
         headers: {'int': '42'},
-        body: {'content': 'body'},
+        body: json.encode({'content': 'body'}),
         parameters: {'key': 'val'},
       );
 
@@ -116,7 +115,7 @@ void main() {
       final response = await chopper.patch(
         '/test/patch',
         headers: {'int': '42'},
-        body: {'content': 'body'},
+        body: json.encode({'content': 'body'}),
         parameters: {'key': 'val'},
       );
 

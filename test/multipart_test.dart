@@ -29,8 +29,7 @@ void main() {
         return http.Response('ok', 200);
       });
 
-      final chopper =
-          ChopperClient(client: httpClient, converter: JsonConverter());
+      final chopper = ChopperClient(client: httpClient);
       final service = HttpTestService.create(chopper);
 
       await service.postResources({'foo': 'bar'}, {'bar': 'foo'});

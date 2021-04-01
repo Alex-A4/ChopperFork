@@ -105,11 +105,11 @@ void main() {
     test('Http logger interceptor response', () async {
       final logger = HttpLoggingInterceptor();
 
-      final fakeResponse = Response<String>(
-        http.Response('responseBodyBase', 200,
-            headers: {'foo': 'bar'},
-            request: await fakeRequest.toBaseRequest()),
-        'responseBody',
+      final fakeResponse = Response(
+        'responseBodyBase',
+        200,
+        headers: {'foo': 'bar'},
+        request: await fakeRequest.toBaseRequest(),
       );
 
       final logs = [];
@@ -135,8 +135,7 @@ class ResponseIntercept implements ResponseInterceptor {
   static dynamic intercepted;
 
   @override
-  FutureOr<Response<BodyType>> onResponse<BodyType>(
-      Response<BodyType> response, Request req) {
+  Future<Response> onResponse(Response response, Request req) async {
     intercepted = _Intercepted(response.body);
     return response;
   }
@@ -144,7 +143,7 @@ class ResponseIntercept implements ResponseInterceptor {
 
 class RequestIntercept implements RequestInterceptor {
   @override
-  FutureOr<Request> onRequest(Request request) =>
+  Future<Request> onRequest(Request request) async =>
       request.copyWith(url: '${request.url}/intercept');
 }
 
