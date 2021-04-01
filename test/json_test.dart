@@ -21,7 +21,8 @@ void main() {
             HttpTestService.create(),
           ],
           client: httpClient,
-          converter: json ? JsonConverter() : FormUrlEncodedConverter(),
+          converter:
+              json ? JsonConverter() as Converter : FormUrlEncodedConverter(),
         );
 
     test('default json', () async {
@@ -43,32 +44,6 @@ void main() {
 
       final result =
           await chopper.getService<HttpTestService>().mapTest(sample);
-
-      expect(result.body, equals(res));
-
-      httpClient.close();
-    });
-
-    test('force json', () async {
-      final httpClient = MockClient((http.Request req) async {
-        expect(req.url.toString(), equals('/test/map/json'));
-        expect(req.headers['content-type'], 'application/json; charset=utf-8');
-        expect(req.headers['customConverter'], 'true');
-        expect(req.body, equals(json.encode(sample)));
-        return http.Response(
-          json.encode(res),
-          200,
-          headers: {'content-type': 'application/json; charset=utf-8'},
-        );
-      });
-
-      final chopper = buildClient(
-        false,
-        httpClient,
-      );
-
-      final result =
-          await chopper.getService<HttpTestService>().forceJsonTest(sample);
 
       expect(result.body, equals(res));
 

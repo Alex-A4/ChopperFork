@@ -22,18 +22,18 @@ class Response<BodyType> {
   ///
   /// Can be null if [isSuccessful] is not true
   /// Use [error] to get error body
-  final BodyType body;
+  final BodyType? body;
 
   /// Body of response if [isSuccessful] is false
-  final Object error;
+  final Object? error;
 
   Response(this.base, this.body, {this.error});
 
   @Deprecated('Prefer copyWith method')
   Response<NewBodyType> replace<NewBodyType>({
-    http.BaseResponse base,
-    NewBodyType body,
-    Object bodyError,
+    http.BaseResponse? base,
+    NewBodyType? body,
+    Object? bodyError,
   }) =>
       copyWith<NewBodyType>(
         base: base,
@@ -44,9 +44,9 @@ class Response<BodyType> {
   /// Make a copy of the current response
   /// And replace with given values
   Response<NewBodyType> copyWith<NewBodyType>({
-    http.BaseResponse base,
-    NewBodyType body,
-    Object bodyError,
+    http.BaseResponse? base,
+    NewBodyType? body,
+    Object? bodyError,
   }) =>
       Response<NewBodyType>(
         base ?? this.base,
@@ -66,9 +66,9 @@ class Response<BodyType> {
 
   /// Return body as bytes ([Uint8List]) if available
   Uint8List get bodyBytes =>
-      base is http.Response ? (base as http.Response).bodyBytes : null;
+      base is http.Response ? (base as http.Response).bodyBytes : Uint8List(0);
 
   /// Return body as [String] if available
   String get bodyString =>
-      base is http.Response ? (base as http.Response).body : null;
+      base is http.Response ? (base as http.Response).body : '';
 }

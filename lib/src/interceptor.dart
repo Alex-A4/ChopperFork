@@ -20,7 +20,7 @@ import 'constants.dart';
 ///   String _token;
 ///
 ///   @override
-///   FutureOr<Response> onResponse(Response response) {
+///   FutureOr<Response> onResponse(Response response, Request interceptedRequest) {
 ///     _token ??= response.headers['auth_token'];
 ///     return response;
 ///   }
@@ -28,7 +28,8 @@ import 'constants.dart';
 /// ```
 @immutable
 abstract class ResponseInterceptor {
-  FutureOr<Response> onResponse(Response response, Request interceptedRequest);
+  FutureOr<Response<BodyType>> onResponse<BodyType>(
+      Response<BodyType> response, Request interceptedRequest);
 }
 
 /// Interface to implements a request interceptor.
@@ -58,6 +59,8 @@ abstract class RequestInterceptor {
 /// See [JsonConverter], [FormUrlEncodedConverter]
 @immutable
 abstract class Converter {
+  const Converter();
+
   FutureOr<Request> convertRequest(Request request);
 
   /// [BodyType] is the expected type of your response
@@ -87,49 +90,6 @@ class HeadersInterceptor implements RequestInterceptor {
       applyHeaders(request, headers);
 }
 
-typedef ResponseInterceptorFunc1 = FutureOr<Response<BodyType>>
-    Function<BodyType>(
-  Response<BodyType> response,
-);
-typedef ResponseInterceptorFunc2 = FutureOr<Response<BodyType>>
-    Function<BodyType, InnerType>(
-  Response<BodyType> response,
-);
-typedef DynamicResponseInterceptorFunc = FutureOr<Response> Function(
-  Response response,
-);
-typedef RequestInterceptorFunc = FutureOr<Request> Function(Request request);
-
-/// Interceptor that print a curl request
-/// thanks @edwardaux
-@immutable
-class CurlInterceptor implements RequestInterceptor {
-  @override
-  Future<Request> onRequest(Request request) async {
-    final baseRequest = await request.toBaseRequest();
-    final method = baseRequest.method;
-    final url = baseRequest.url.toString();
-    final headers = baseRequest.headers;
-    var curl = '';
-    curl += 'curl';
-    curl += ' -v';
-    curl += ' -X $method';
-    headers.forEach((k, v) {
-      curl += ' -H \'$k: $v\'';
-    });
-    // this is fairly naive, but it should cover most cases
-    if (baseRequest is http.Request) {
-      final body = baseRequest.body;
-      if (body != null && body.isNotEmpty) {
-        curl += ' -d \'$body\'';
-      }
-    }
-    curl += ' $url';
-    chopperLogger.info(curl);
-    return request;
-  }
-}
-
 @immutable
 class HttpLoggingInterceptor
     implements RequestInterceptor, ResponseInterceptor {
@@ -142,7 +102,7 @@ class HttpLoggingInterceptor
     var bytes = '';
     if (base is http.Request) {
       final body = base.body;
-      if (body != null && body.isNotEmpty) {
+      if (body.isNotEmpty) {
         chopperLogger.info(body);
         bytes = ' (${base.bodyBytes.length}-byte body)';
       }
@@ -153,22 +113,23 @@ class HttpLoggingInterceptor
   }
 
   @override
-  FutureOr<Response> onResponse(Response response, _) {
+  FutureOr<Response<BodyType>> onResponse<BodyType>(
+      Response<BodyType> response, Request? request) {
     final base = response.base.request;
-    chopperLogger.info('<-- ${response.statusCode} ${base.url}');
+    chopperLogger.info('<-- ${response.statusCode} ${base?.url}');
 
     response.base.headers.forEach((k, v) => chopperLogger.info('$k: $v'));
 
     var bytes;
     if (response.base is http.Response) {
       final resp = response.base as http.Response;
-      if (resp.body != null && resp.body.isNotEmpty) {
+      if (resp.body.isNotEmpty) {
         chopperLogger.info(resp.body);
-        bytes = ' (${response.bodyBytes?.length}-byte body)';
+        bytes = ' (${response.bodyBytes.length}-byte body)';
       }
     }
 
-    chopperLogger.info('--> END ${base.method}$bytes');
+    chopperLogger.info('--> END ${base?.method}$bytes');
     return response;
   }
 }
@@ -202,10 +163,13 @@ class JsonConverter implements Converter, ErrorConverter {
     return request;
   }
 
-  Response decodeJson<BodyType, InnerType>(Response response) {
+  Response<BodyType> decodeJson<BodyType, InnerType>(Response response) {
+    final supportedContentTypes = [jsonHeaders, jsonApiHeaders];
+
     var contentType = response.headers[contentTypeKey];
     var body = response.body;
-    if (contentType != null && contentType.contains(jsonHeaders)) {
+
+    if (supportedContentTypes.contains(contentType)) {
       // If we're decoding JSON, there's some ambiguity in https://tools.ietf.org/html/rfc2616
       // about what encoding should be used if the content-type doesn't contain a 'charset'
       // parameter. See https://github.com/dart-lang/http/issues/186. In a nutshell, without
@@ -287,7 +251,7 @@ class FormUrlEncodedConverter implements Converter, ErrorConverter {
 
   @override
   Response<BodyType> convertResponse<BodyType, InnerType>(Response response) =>
-      response;
+      response as Response<BodyType>;
 
   @override
   FutureOr<Response> convertError<BodyType, InnerType>(Response response) =>

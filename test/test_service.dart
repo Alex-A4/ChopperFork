@@ -8,17 +8,20 @@ part 'test_service.chopper.dart';
 
 @ChopperApi(baseUrl: '/test')
 abstract class HttpTestService extends ChopperService {
-  static HttpTestService create([ChopperClient client]) =>
+  static HttpTestService create([ChopperClient? client]) =>
       _$HttpTestService(client);
 
   @Get(path: 'get/{id}')
   Future<Response<String>> getTest(
     @Path() String id, {
-    @Header('test') String dynamicHeader,
+    @Header('test') String dynamicHeader = '',
   });
 
   @Head(path: 'head')
   Future<Response> headTest();
+
+  @Options(path: 'options')
+  Future<Response> optionsTest();
 
   @Get(path: 'get')
   Future<Response<Stream<List<int>>>> getStreamTest();
@@ -31,9 +34,9 @@ abstract class HttpTestService extends ChopperService {
 
   @Get(path: 'query')
   Future<Response> getQueryTest({
-    @Query('name') String name,
-    @Query('int') int number,
-    @Query('default_value') int def = 42,
+    @Query('name') String name = '',
+    @Query('int') int? number,
+    @Query('default_value') int? def = 42,
   });
 
   @Get(path: 'query_map')
@@ -42,8 +45,11 @@ abstract class HttpTestService extends ChopperService {
   @Get(path: 'query_map')
   Future<Response> getQueryMapTest2(
     @QueryMap() Map<String, dynamic> query, {
-    @Query('test') bool test,
+    @Query('test') bool? test,
   });
+
+  @Get(path: 'get_body')
+  Future<Response> getBody(@Body() dynamic body);
 
   @Post(path: 'post')
   Future<Response> postTest(@Body() String data);
@@ -63,21 +69,15 @@ abstract class HttpTestService extends ChopperService {
   @Post(path: 'map')
   Future<Response> mapTest(@Body() Map<String, String> map);
 
-  @FactoryConverter(request: convertForm)
   @Post(path: 'form/body')
   Future<Response> postForm(@Body() Map<String, String> fields);
 
   @Post(path: 'form/body', headers: {contentTypeKey: formEncodedHeaders})
   Future<Response> postFormUsingHeaders(@Body() Map<String, String> fields);
 
-  @FactoryConverter(request: convertForm)
+  @FactoryConverter(converter: TestConverter(onlyRequest: true))
   @Post(path: 'form/body/fields')
   Future<Response> postFormFields(@Field() String foo, @Field() int bar);
-
-  @Post(path: 'map/json')
-  @FactoryConverter(
-      request: customConvertRequest, response: customConvertResponse)
-  Future<Response> forceJsonTest(@Body() Map map);
 
   @Post(path: 'multi')
   @multipart
@@ -96,7 +96,7 @@ abstract class HttpTestService extends ChopperService {
   @multipart
   Future<Response> postMultipartFile(
     @PartFile() MultipartFile file, {
-    @Part() String id,
+    @Part() String? id,
   });
 
   @Post(path: 'files')
@@ -118,23 +118,34 @@ Request customConvertRequest(Request req) {
   return applyHeader(r, 'customConverter', 'true');
 }
 
-Response<T> customConvertResponse<T>(Response res) =>
-    res.copyWith(body: json.decode(res.body));
+class TestConverter extends Converter {
+  final bool onlyRequest;
 
-Request convertForm(Request req) {
-  req = applyHeader(req, contentTypeKey, formEncodedHeaders);
+  const TestConverter({this.onlyRequest = false});
 
-  if (req.body is Map) {
-    final body = <String, String>{};
+  @override
+  FutureOr<Request> convertRequest(Request req) {
+    req = applyHeader(req, contentTypeKey, formEncodedHeaders);
 
-    req.body.forEach((key, val) {
-      if (val != null) {
-        body[key.toString()] = val.toString();
-      }
-    });
+    if (req.body is Map) {
+      final body = <String, String>{};
 
-    req = req.copyWith(body: body);
+      req.body.forEach((key, val) {
+        if (val != null) {
+          body[key.toString()] = val.toString();
+        }
+      });
+
+      req = req.copyWith(body: body);
+    }
+
+    return req;
   }
 
-  return req;
+  @override
+  FutureOr<Response<BodyType>> convertResponse<BodyType, InnerType>(
+      Response res) {
+    if (onlyRequest) return res as Response<BodyType>;
+    return res.copyWith(body: json.decode(res.body));
+  }
 }

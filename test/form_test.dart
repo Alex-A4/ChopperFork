@@ -49,7 +49,7 @@ void main() {
         return http.Response('ok', 200);
       });
 
-      final chopper = buildClient(httpClient, isJson: true);
+      final chopper = buildClient(httpClient);
 
       final result = await chopper.getService<HttpTestService>().postForm({
         'foo': 'test',
@@ -94,7 +94,7 @@ void main() {
         return http.Response('ok', 200);
       });
 
-      final chopper = buildClient(httpClient);
+      final chopper = buildClient(httpClient, isJson: false);
 
       final result = await chopper
           .getService<HttpTestService>()

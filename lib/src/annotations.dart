@@ -1,6 +1,5 @@
-import 'dart:async';
+import 'package:alexa4_http/alexa4_http.dart';
 import 'package:meta/meta.dart';
-import 'request.dart';
 import 'response.dart';
 import 'constants.dart';
 
@@ -48,7 +47,7 @@ class Path {
   /// @Get(path: '/{param}')
   /// Future<Response> fetch(@Path('param') String hello);
   /// ```
-  final String name;
+  final String? name;
 
   const Path([this.name]);
 }
@@ -71,7 +70,7 @@ class Query {
   /// @Get(path: '/something')
   /// Future<Response> fetch({@Query('id') String mySuperId});
   /// ```
-  final String name;
+  final String? name;
 
   const Query([this.name]);
 }
@@ -123,7 +122,7 @@ class Header {
   /// @Get()
   /// Future<Response> fetch(@Header('foo') String headerFoo);
   /// ```
-  final String name;
+  final String? name;
 
   const Header([this.name]);
 }
@@ -157,7 +156,7 @@ class Method {
   final Map<String, String> headers;
 
   /// Mark the body as optional to suppress warnings during code generation
-  final bool optionalBody;
+  final bool? optionalBody;
 
   const Method(
     this.method, {
@@ -247,6 +246,20 @@ class Patch extends Method {
         );
 }
 
+@immutable
+class Options extends Method {
+  const Options({
+    bool optionalBody = true,
+    String path = '',
+    Map<String, String> headers = const {},
+  }) : super(
+          HttpMethod.Options,
+          optionalBody: optionalBody,
+          path: path,
+          headers: headers,
+        );
+}
+
 /// Defined a method as an HTTP HEAD request.
 @immutable
 class Head extends Method {
@@ -262,18 +275,11 @@ class Head extends Method {
         );
 }
 
-typedef ConvertRequest = FutureOr<Request> Function(Request request);
-typedef ConvertResponse<T> = FutureOr<Response> Function(Response response);
-
 @immutable
 class FactoryConverter {
-  final ConvertRequest request;
-  final ConvertResponse response;
+  final Converter? converter;
 
-  const FactoryConverter({
-    this.request,
-    this.response,
-  });
+  const FactoryConverter({this.converter});
 }
 
 /// Define a field for a `x-www-form-urlencoded` request.
@@ -291,7 +297,7 @@ class Field {
   /// @Post(path: '/')
   /// Future<Response> create(@Field('id') String myId);
   /// ```
-  final String name;
+  final String? name;
 
   const Field([this.name]);
 }
@@ -318,7 +324,8 @@ class Multipart {
 /// Also accepts `MultipartFile` (from package:http).
 @immutable
 class Part {
-  final String name;
+  final String? name;
+
   const Part([this.name]);
 }
 
@@ -336,7 +343,7 @@ class Part {
 ///   - `MultipartFile` (from package:http)
 @immutable
 class PartFile {
-  final String name;
+  final String? name;
 
   const PartFile([this.name]);
 }
@@ -356,7 +363,7 @@ class PartFile {
 @immutable
 @Deprecated('use PartFile')
 class FileField extends PartFile {
-  const FileField([String name]) : super(name);
+  const FileField([String? name]) : super(name);
 }
 
 const multipart = Multipart();
